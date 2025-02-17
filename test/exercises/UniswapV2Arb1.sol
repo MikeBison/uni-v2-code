@@ -5,6 +5,8 @@ import {IUniswapV2Pair} from "../../src/interfaces/uniswap-v2/IUniswapV2Pair.sol
 import {IUniswapV2Router02} from "../../src/interfaces/uniswap-v2/IUniswapV2Router02.sol";
 import {IERC20} from "../../src/interfaces/IERC20.sol";
 
+error InsufficientProfit();
+
 contract UniswapV2Arb1 {
     struct SwapParams {
         // Router to execute first swap - tokenIn for tokenOut
@@ -21,13 +23,50 @@ contract UniswapV2Arb1 {
         uint256 minProfit;
     }
 
+    function _swap (SwapParams memory params) private returns (uint256 amountOut) {
+        IERC20(params.tokenIn).approve(address(params.router0), params.amountIn);
+
+        address[] memory path = new address[](2);
+        path[0] = params.tokenIn;
+        path[1] = params.tokenOut;
+
+        uint256[] memory amounts = IUniswapV2Router02(params.router0).swapExactTokensForTokens(
+            params.amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        IERC20(params.tokenOut).approve(address(params.router1), amounts[1]);
+
+        path[0] = params.tokenOut;
+        path[1] = params.tokenIn;
+
+        amounts = IUniswapV2Router02(params.router1).swapExactTokensForTokens(
+            amounts[1],
+            params.amountIn,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        amountOut = amounts[1];
+    }
+
     // Exercise 1
     // - Execute an arbitrage between router0 and router1
     // - Pull tokenIn from msg.sender
     // - Send amountIn + profit back to msg.sender
     function swap(SwapParams calldata params) external {
         // Write your code here
-        // Don’t change any other code
+        // Don’t change any other code;
+        IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
+
+        uint256 amountOut = _swap(params);
+
+        require(amountOut - params.amountIn >= params.minProfit, "InsufficientProfit");
+        IERC20(params.tokenIn).transfer(msg.sender, amountOut);
     }
 
     // Exercise 2
@@ -46,6 +85,12 @@ contract UniswapV2Arb1 {
     ) external {
         // Write your code here
         // Don’t change any other code
+        IUniswapV2Pair(pair).swap({
+            to: address(this),
+            data: abi.encode(msg.sender,pair,params),
+            amount0Out: isToken0 ? params.amountIn : 0,
+            amount1Out: isToken0 ? 0 : params.amountIn
+        });
     }
 
     function uniswapV2Call(
@@ -56,5 +101,21 @@ contract UniswapV2Arb1 {
     ) external {
         // Write your code here
         // Don’t change any other code
+        // NOTE anyone can call
+
+        (address caller, address pair, SwapParams memory params) = abi.decode(data, (address, address, SwapParams));
+
+        uint256 amountOut = _swap(params);
+
+        uint256 fee = ((params.amountIn * 3) / 997) + 1;
+
+        uint256 amountToRepay = params.amountIn + fee;
+
+        uint256 profit = amountOut - amountToRepay;
+
+        require(profit >= params.minProfit, "minProfit low");
+
+        IERC20(params.tokenIn).transfer(address(pair), amountToRepay);
+        IERC20(params.tokenIn).transfer(caller, profit);
     }
 }

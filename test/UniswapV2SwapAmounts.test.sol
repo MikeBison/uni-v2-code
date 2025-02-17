@@ -16,7 +16,7 @@ contract UniswapV2SwapAmountsTest is Test {
         IUniswapV2Router02(UNISWAP_V2_ROUTER_02);
 
     // WETH -> DAI -> MKR
-    function test_getAmountsOut() public {
+    function test_getAmountsOut() public view {
         address[] memory path = new address[](3);
         path[0] = WETH;
         path[1] = DAI;
@@ -26,20 +26,28 @@ contract UniswapV2SwapAmountsTest is Test {
 
         uint256[] memory amounts = router.getAmountsOut(amountIn, path);
 
+        //   WETH 1000000000000000000
+        //   DAI 2653806759596209029708
+        //   MKR 56165205231551097
         console2.log("WETH", amounts[0]);
         console2.log("DAI", amounts[1]);
         console2.log("MKR", amounts[2]);
     }
-    function test_getAmountsIn() public {
+
+    function test_getAmountsIn() public view {
         address[] memory path = new address[](3);
         path[0] = WETH;
         path[1] = DAI;
         path[2] = MKR;
 
         uint256 amountOut = 1e16;
+
         uint256[] memory amounts = router.getAmountsIn(amountOut, path);
 
-        console2.log("WETH", amounts[0]);
+        //   WETH 1000000000000000000
+        //   DAI 2636476444184015359551
+        //   MKR 56157701946248199
+        console2.log("WETH", amounts[0]);  
         console2.log("DAI", amounts[1]);
         console2.log("MKR", amounts[2]);
     }
